@@ -6,9 +6,12 @@ min_herdr_version = "0.9.2"
 description = "Create, open and remove git worktrees with Worktrunk (wt), and show PR or dirty state on each Space"
 platforms = ["linux", "macos"]
 
-# Re-apply sidebar tokens after a server start (tokens are not persisted by Herdr).
+# Live status: a watcher that follows Herdr events and git changes, and keeps
+# sidebar tokens current until the server stops. It also re-applies tokens after
+# a server start (Herdr does not persist them). With "live": false in config.json
+# it runs one sync and exits.
 [[startup]]
-command = ["node", "src/main.mjs", "sync", "--force"]
+command = ["node", "src/main.mjs", "live"]
 
 # ---------------------------------------------------------------- actions
 
@@ -54,7 +57,8 @@ height = "75%"
 command = ["node", "src/main.mjs", "picker"]
 
 # ---------------------------------------------------------------- events
-# Every hook runs the same throttled sync; bursts collapse into one run.
+# Fallback for when the live watcher is not running: a throttled sync per event.
+# While the watcher runs these return at once.
 
 [[events]]
 on = "workspace.focused"

@@ -17,6 +17,20 @@ const DEFAULTS = {
   icons: "nerd",
   // Absolute path to wt when Herdr's server does not have it on PATH
   wtBin: null,
+  // Colors: "posh" follows an oh-my-posh palette; "ansi" is the plain 16-color look
+  theme: "posh",
+  // Path to an oh-my-posh theme (.toml, .json, .yaml). Unset: $POSH_THEME, then the built-in mauposh palette
+  ohMyPoshTheme: null,
+  // Which built-in palette to use when no theme file is found: "dark" | "light"
+  appearance: "dark",
+  // Per-role color overrides: { "branch": "#906cff", "good": "lightGreen", ... }
+  colors: {},
+  // Hex for named colors in the sidebar config: { "lightGreen": "#5fd787", ... }
+  namedColors: {},
+  // Keep a watcher running so sidebar status follows git changes as they happen
+  live: true,
+  // Seconds between PR / CI checks while the watcher runs (faster while checks are running)
+  prPollSeconds: 30,
 };
 
 export function loadConfig() {

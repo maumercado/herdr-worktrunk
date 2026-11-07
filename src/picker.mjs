@@ -547,7 +547,7 @@ export class Picker {
     const lines = [];
     const repoName = this.primary ? basename(this.primary.worktree.path) : basename(this.repo?.toplevel ?? "");
     const right = this.loadingFull ? tone.busy(`${icons().loading} fetching PR status`) : "";
-    const title = ` ${style.bold("Worktrees")} ${style.dim("·")} ${repoName}`;
+    const title = `${tone.muted("╭─")} ${style.bold("Worktrees")} ${tone.muted("·")} ${tone.path(repoName)}`;
     lines.push(title + " ".repeat(Math.max(1, W - width(title) - width(right) - 1)) + right);
 
     if (this.filtering || this.filter) lines.push(` ${tone.accent("/")} ${this.filter}${this.filtering ? "▏" : ""}`);
@@ -572,7 +572,7 @@ export class Picker {
       const help = this.overlay
         ? (this.overlay.footer ?? " esc cancel")
         : ` enter open · t tab · v split · - below · n new · p PR · b ${this.showBranches ? "hide" : "show"} branches · x remove · o PR web · r refresh · / filter · q quit`;
-      lines.push(style.dim(fit(help, W)));
+      lines.push(`${tone.muted("╰─")}${tone.good("❯")}${tone.muted(fit(help, W - 3))}`);
     }
     this.screen.draw(lines);
   }
@@ -611,10 +611,10 @@ export class Picker {
       const pathW = Math.max(0, W - 4 - branchW - statusW - herdrW - 3);
       let line =
         `${sel ? tone.accent("▌") : " "}${sel ? gutter : style.dim(gutter)} ` +
-        `${sel ? style.bold(pad(branch, branchW)) : pad(branch, branchW)} ` +
+        `${tone.branch(sel ? style.bold(pad(branch, branchW)) : pad(branch, branchW))} ` +
         `${tone[d.tone](pad(d.text, statusW))} ` +
-        `${tone.accent(pad(open, herdrW))} ` +
-        style.dim(fit(item.worktree ? tildify(item.worktree.path) : "no worktree yet", pathW));
+        `${tone.info(pad(open, herdrW))} ` +
+        (item.worktree ? tone.path(fit(tildify(item.worktree.path), pathW)) : tone.muted(fit("no worktree yet", pathW)));
       if (sel) line = `\x1b[48;5;236m${line}`;
       out.push(line);
     }

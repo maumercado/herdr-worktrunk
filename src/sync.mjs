@@ -10,6 +10,7 @@ import { listWorkspaces, listPanes, reportWorkspaceTokens } from "./herdr.mjs";
 import { repoOf, wtList, canon, isInside } from "./wt.mjs";
 import { describe } from "./status.mjs";
 import { loadConfig } from "./config.mjs";
+import { icons, lead } from "./icons.mjs";
 
 const THROTTLE_MS = Number(process.env.WT_HERDR_THROTTLE_MS ?? loadConfig().syncThrottleSeconds * 1000);
 const LOCK_STALE_MS = 90_000;
@@ -69,6 +70,14 @@ export function itemForPath(items, toplevel) {
     items.find((i) => i.worktree?.path && isInside(target, i.worktree.path)) ??
     null
   );
+}
+
+/** Branch tokens: plain name, and icon + name to color like the prompt's git segment. */
+export function headTokens(item, I = icons()) {
+  const name = item.branch ?? item.head?.short_sha ?? null;
+  if (!name) return { wt_branch: null, wt_head: null };
+  const glyph = item.branch ? I.branch : I.detached;
+  return { wt_branch: name.slice(0, 80), wt_head: `${lead(glyph)}${name}`.slice(0, 80) };
 }
 
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -136,7 +145,7 @@ export function syncStatus({ force = false, log = () => {} } = {}) {
         if (!item) continue;
         const { tokens } = describe(item);
         if (tokens.wt_url && tokens.wt_url.length > 80) tokens.wt_url = null;
-        tokens.wt_branch = item.branch ?? item.head?.short_sha ?? null;
+        Object.assign(tokens, headTokens(item));
         reportWorkspaceTokens(ws.workspace_id, tokens, seq++);
         updated++;
       }

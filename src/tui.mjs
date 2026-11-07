@@ -1,4 +1,5 @@
 // Minimal terminal UI helpers: alt screen, raw keys, ANSI styling, width-aware truncation.
+import { theme } from "./theme.mjs";
 
 const ESC = "\x1b[";
 export const style = {
@@ -8,13 +9,20 @@ export const style = {
   inverse: (s) => `${ESC}7m${s}${ESC}27m`,
   fg: (code, s) => `${ESC}${code}m${s}${ESC}39m`,
 };
+// Colors come from the active theme (your oh-my-posh palette by default).
+// Looked up per call so the theme loads only when something is drawn.
+const role = (name) => (s) => theme().paint[name](s);
 export const tone = {
-  good: (s) => style.fg(32, s),
-  bad: (s) => style.fg(31, s),
-  warn: (s) => style.fg(33, s),
-  busy: (s) => style.fg(36, s),
-  muted: (s) => style.dim(s),
-  accent: (s) => style.fg(35, s),
+  good: role("good"),
+  bad: role("bad"),
+  warn: role("warn"),
+  busy: role("busy"),
+  muted: role("muted"),
+  accent: role("accent"),
+  branch: role("branch"),
+  path: role("path"),
+  info: role("info"),
+  text: role("text"),
 };
 
 const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g;

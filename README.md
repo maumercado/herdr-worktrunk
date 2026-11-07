@@ -17,6 +17,7 @@ Browse, create, open and remove worktrees from a popup, and see each worktree's 
 * [Quick start](#quick-start)
 * [The popup](#the-popup)
 * [Status in the sidebar](#status-in-the-sidebar)
+* [Theme](#theme)
 * [Configuration](#configuration)
 * [How it maps to Herdr](#how-it-maps-to-herdr)
 * [Troubleshooting](#troubleshooting)
@@ -28,9 +29,10 @@ Browse, create, open and remove worktrees from a popup, and see each worktree's 
 * **One popup for every worktree** of the current repo, with its state. Open any of them as a **Space**, a **tab** in the current Space, or a **split** next to the focused pane.
 * **Create and open in one step**: a new branch, an existing branch, or a PR. `wt switch` does the work, so Worktrunk hooks run as usual.
 * **Clean removal**: `wt remove` handles the branch (`--force`, `-D`, keep), then the plugin closes the Herdr Spaces and panes that were sitting in that checkout.
-* **Sidebar status per Space**: PR number, checks and review when the branch has an open PR; otherwise dirty or clean plus ahead/behind.
+* **Live sidebar status per Space**: PR number, checks and review when the branch has an open PR; otherwise dirty or clean plus ahead/behind. A watcher follows git and Herdr, so an edit, `git add`, commit, checkout or push shows up within about a second.
+* **Colors from your prompt**: reads the palette of your [oh-my-posh](https://ohmyposh.dev) theme, so branches, paths and status look the same as in your shell. Prints matching sidebar config for Herdr.
 * **Ctrl-click a GitHub PR link** in any pane to check it out in a worktree.
-* **Nerd Font icons** for branches, PRs, checks and reviews, with a plain Unicode fallback.
+* **Nerd Font icons** for branches, PRs, checks and reviews (the branch glyph matches oh-my-posh's git segment), with a plain Unicode fallback.
 * **No build step and no dependencies**: plain Node ES modules.
 
 ## Requirements
@@ -137,35 +139,81 @@ The plugin reports these workspace tokens on every Space that lives inside a rep
 | `$wt_ci` | `passed`, `running`, `failed`, `conflicts`, `none` |
 | `$wt_review` | `approved`, `changes_requested`, `pending`, `draft` |
 | `$wt_sync` | `↑2 ↓1 ⇡1` (ahead/behind the default branch, unpushed) |
+| `$wt_head` | branch with its icon, like the prompt's git segment: ` feat/login` |
 | `$wt_branch` | branch name |
 
-Show them by replacing the Space rows in `config.toml`:
+Show them by replacing the Space rows in `config.toml`. The easiest way is to let the plugin print rows in your theme's colors (see [Theme](#theme)):
+
+```sh
+# from the plugin checkout; the theme path is optional
+node src/main.mjs sidebar-config ~/.config/ohmyposh/mauposh-dark.toml
+```
+
+With the built-in palette that prints:
 
 ```toml
 [ui.sidebar.spaces]
 rows = [
   ["state_icon", "workspace"],
-  ["branch", { token = "$wt_status", fg = "#a6e3a1", rules = [
-    { contains = "failed", fg = "#f38ba8" },
-    { contains = "conflicts", fg = "#f38ba8" },
-    { contains = "changes req", fg = "#f38ba8" },
-    { contains = "running", fg = "#f9e2af" },
-    { contains = "review req", fg = "#f9e2af" },
-    { contains = "dirty", fg = "#fab387" },
-    { contains = "merged", dim = true },
-  ] }],
+  [
+    { token = "$wt_head", fg = "#906cff" },
+    { token = "$wt_status", fg = "#5fd787", rules = [
+      { contains = "failed", fg = "#f14c4c" },
+      { contains = "conflicts", fg = "#f14c4c" },
+      { contains = "changes req", fg = "#f14c4c" },
+      { contains = "running", fg = "#d4a017" },
+      { contains = "review req", fg = "#d4a017" },
+      { contains = "dirty", fg = "#ff8700" },
+      { contains = "merged", fg = "#767676" },
+    ] },
+  ],
 ]
 ```
 
 Status text always keeps a word next to each icon (`failed`, `running`, `dirty`, `merged`), so these color rules work with either icon set. `$wt_pr`, `$wt_ci` and `$wt_review` stay plain text.
 
-### When status refreshes
+### How status stays live
 
-* On Space focus, Space creation, worktree creation or open, and agent state changes.
-* Runs are throttled (8 seconds by default) and serialized with a lock, so a burst of events costs one `wt list --full`.
-* A Space the plugin has not seen yet always syncs right away.
-* Herdr does not keep tokens across a server restart, so a startup hook fills them again.
+The `[[startup]]` hook starts a small watcher (`main.mjs live`) that runs until the Herdr server stops:
+
+| Source | How it is followed | Delay |
+|---|---|---|
+| Which checkout each Space shows | Herdr socket `events.subscribe` (workspace, pane and worktree events), plus a re-check every 4 s | instant |
+| Edits, staging, commits, checkouts, stashes | `fs.watch` on each open checkout, its git dir and the repo's refs, then a local `wt list` | ~200 ms after the last change, never more than 1 s into a burst |
+| Push and fetch | remote ref changes trigger a PR refresh | ~1.5 s, plus the forge's own delay |
+| PR, CI and review state | `wt list --full` | every 30 s, every 10 s while checks are running |
+
+* The PR lane and the local lane run separately, so a slow GitHub call never holds up local status.
+* Only tokens that changed are sent to Herdr.
+* One watcher per Herdr server. The event hooks in the manifest stay as a fallback and return at once while the watcher runs.
+* If the socket is not reachable the watcher polls Herdr every 2 s instead. If `fs.watch` fails on a repo (very large trees on Linux can hit inotify limits) it polls that repo every 2 s.
+* Herdr does not keep tokens across a server restart; the watcher fills them again when it starts.
 * LLM summaries are always off for the plugin's `wt list` calls, so it never spends model tokens.
+
+Set `"live": false` to go back to event-hook syncs only (throttled to one run per 8 s, PR state included).
+
+## Theme
+
+The popup and the generated sidebar rows take their colors from an oh-my-posh theme's `[palette]`:
+
+| Role | Palette keys tried | Built-in (mauposh dark) | Used for |
+|---|---|---|---|
+| `branch` | `branch`, `git` | `#906cff` | branch names, accents |
+| `path` | `folder`, `path` | `lightBlue` | checkout paths, repo name |
+| `muted` | `muted`, `comment` | `#767676` | frame and hints |
+| `good` | `arrow`, `success` | `lightGreen` | clean, passed, approved |
+| `bad` | `error`, `fail` | `red` | failed checks, conflicts, changes requested |
+| `warn` | `rust`, `warning` | `#ff8700` | dirty |
+| `busy` | `took`, `time` | `#d4a017` | running checks, review requested |
+| `info` | `go`, `info` | `#7FD5EA` | open Space and pane markers |
+
+Where the palette comes from, first match wins:
+
+1. `ohMyPoshTheme` in `config.json` (path to a `.toml`, `.json` or `.yaml` theme)
+2. `$POSH_THEME`, if Herdr's server has it
+3. the built-in mauposh palette (`"appearance": "light"` for the light variant)
+
+Named colors such as `lightGreen` are drawn in the popup with the matching ANSI code, so your terminal's palette picks the exact shade, same as in your prompt. Herdr's sidebar only takes hex, so for `sidebar-config` they become hex values; set `namedColors` to your terminal's real values if they look off. Override any single role with `colors`, or set `"theme": "ansi"` for the plain 16-color look.
 
 ## Configuration
 
@@ -183,7 +231,12 @@ herdr plugin config-dir maumercado.worktrunk
   "showBranches": false,
   "syncThrottleSeconds": 8,
   "icons": "nerd",
-  "wtBin": "/opt/homebrew/bin/wt"
+  "wtBin": "/opt/homebrew/bin/wt",
+  "live": true,
+  "prPollSeconds": 30,
+  "ohMyPoshTheme": "~/.config/ohmyposh/mauposh-dark.toml",
+  "colors": { "warn": "#fab387" },
+  "namedColors": { "lightGreen": "#a6e3a1", "lightBlue": "#89b4fa" }
 }
 ```
 
@@ -193,9 +246,16 @@ herdr plugin config-dir maumercado.worktrunk
 | `afterCreate` | `"ask"` | `ask` shows the open menu after creating; or always `space`, `tab`, `split`, `split-down`, `none` |
 | `closePanesOnRemove` | `true` | close Herdr Spaces and panes inside a worktree when it is removed |
 | `showBranches` | `false` | start the popup with branch rows listed (same as pressing `b`) |
-| `syncThrottleSeconds` | `8` | minimum seconds between event-triggered syncs |
+| `syncThrottleSeconds` | `8` | minimum seconds between event-triggered syncs (only used when the watcher is not running) |
 | `icons` | `"nerd"` | `nerd` needs a Nerd Font v3 in your terminal; `unicode` works with any font |
 | `wtBin` | `null` | absolute path to `wt` when Herdr's server does not have it on `PATH` |
+| `live` | `true` | run the live status watcher; `false` for event-hook syncs only |
+| `prPollSeconds` | `30` | seconds between PR / CI checks (10 s while checks are running) |
+| `theme` | `"posh"` | `posh` follows an oh-my-posh palette; `ansi` is the plain 16-color look |
+| `ohMyPoshTheme` | `null` | path to your oh-my-posh theme (`~` works) |
+| `appearance` | `"dark"` | built-in palette to use when no theme file is found: `dark` or `light` |
+| `colors` | `{}` | per-role overrides, e.g. `{ "branch": "#906cff" }` (see [Theme](#theme)) |
+| `namedColors` | `{}` | hex for named colors in `sidebar-config`, e.g. `{ "lightGreen": "#5fd787" }` |
 
 ## How it maps to Herdr
 
@@ -212,7 +272,14 @@ Herdr's built-in `worktree create` and `worktree remove` are not used: creation 
 
 * **"Worktrunk not found"**: Herdr's server cannot see `wt`. Set `wtBin` in `config.json` (find the path with `which wt`).
 * **No PR info in the sidebar**: check `gh auth status`. Worktrunk needs `gh` to fetch PR state.
-* **Status looks stale**: press your `refresh` key (the `maumercado.worktrunk.refresh` action ignores the throttle).
+* **Status looks stale**: press your `refresh` key (the `maumercado.worktrunk.refresh` action ignores the throttle). Then check the watcher is up: it writes `live.json` (pid and a `beat` timestamp every 5 s) to the plugin's state dir, or to `$TMPDIR/worktrunk-herdr` outside Herdr.
+* **Watch the watcher**: stop Herdr's copy (or set `"live": false`) and run it in a terminal with logging:
+
+  ```sh
+  WT_HERDR_DEBUG=1 node src/main.mjs live
+  ```
+
+* **Colors look off**: run `node src/main.mjs sidebar-config` to see which palette was picked (first line), and set `ohMyPoshTheme` or `namedColors`.
 * **Inspect what sync would report** for a checkout:
 
   ```sh
@@ -246,8 +313,11 @@ src/
   tui.mjs           minimal terminal UI helpers
   wt.mjs            Worktrunk wrapper (wt list / switch / remove)
   herdr.mjs         Herdr CLI wrapper and invocation context
-  sync.mjs          throttled status sync into Space tokens
+  socket.mjs        Herdr socket client for events.subscribe
+  live.mjs          live status watcher (Herdr events + fs.watch + PR polling)
+  sync.mjs          one-shot status sync into Space tokens (hooks, refresh)
   status.mjs        turns a wt list item into sidebar tokens
+  theme.mjs         oh-my-posh palette loading, roles, sidebar-config
   icons.mjs         Nerd Font and Unicode icon sets
   config.mjs        config.json loading and defaults
   exec.mjs          process helpers
@@ -265,7 +335,12 @@ Tests run against real git worktrees, with stand-ins for `herdr` and `wt` in `te
 | Variable | Use |
 |---|---|
 | `WT_HERDR_WT_BIN` | path to `wt` (same as `wtBin`) |
-| `WT_HERDR_THROTTLE_MS` | sync throttle in milliseconds |
+| `WT_HERDR_THROTTLE_MS` | hook sync throttle in milliseconds |
+| `WT_HERDR_DEBUG` | log what the live watcher does to stderr |
+| `WT_HERDR_LIVE_DEBOUNCE_MS` / `WT_HERDR_LIVE_MAX_WAIT_MS` | local refresh debounce (200) and max wait (1000) |
+| `WT_HERDR_LIVE_RECONCILE_MS` / `WT_HERDR_LIVE_POLL_MS` | Herdr re-check interval (4000), polling interval without socket or fs.watch (2000) |
+| `WT_HERDR_PR_POLL_MS` / `WT_HERDR_PR_BUSY_MS` | PR poll interval, and while checks run (10000) |
+| `HERDR_SOCKET_PATH` | Herdr socket, if not the default `~/.config/herdr/herdr.sock` |
 
 ## License
 

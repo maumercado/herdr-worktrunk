@@ -4,7 +4,7 @@ import { loadConfig } from "./config.mjs";
 
 export const ICONS = {
   nerd: {
-    branch: "\uf418", //  nf-oct-git_branch
+    branch: "\ue0a0", //  nf-pl-branch, same glyph as the oh-my-posh git segment
     detached: "\uf417", //  nf-oct-git_commit
     prPrefix: "\uf407 ", //  nf-oct-git_pull_request
     passed: "\uf058", //  nf-fa-check_circle

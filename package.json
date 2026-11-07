@@ -1,0 +1,28 @@
+{
+  "name": "herdr-worktrunk",
+  "version": "0.1.0",
+  "description": "Herdr plugin: manage git worktrees with Worktrunk and show PR or dirty state on each Space",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "author": "Mauricio Mercado",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maumercado/herdr-worktrunk.git"
+  },
+  "homepage": "https://github.com/maumercado/herdr-worktrunk#readme",
+  "bugs": {
+    "url": "https://github.com/maumercado/herdr-worktrunk/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "herdr-plugin",
+    "worktrunk",
+    "git-worktree"
+  ]
+}

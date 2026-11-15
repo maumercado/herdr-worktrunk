@@ -16,6 +16,7 @@ Browse, create, open and remove worktrees from a popup, and see each worktree's 
 * [Install](#install)
 * [Quick start](#quick-start)
 * [The popup](#the-popup)
+* [The Herdr app](#the-herdr-app)
 * [Status in the sidebar](#status-in-the-sidebar)
 * [Theme](#theme)
 * [Configuration](#configuration)
@@ -26,7 +27,7 @@ Browse, create, open and remove worktrees from a popup, and see each worktree's 
 
 ## Features
 
-* **One popup for every worktree** of the current repo, with its state. Open any of them as a **Space**, a **tab** in the current Space, or a **split** next to the focused pane.
+* **One popup for every worktree** of the current repo, with its state — in the herdr TUI and as a **Herdr app dialog**. Open any of them as a **Space**, a **tab** in the current Space, or a **split** next to the focused pane.
 * **Create and open in one step**: a new branch, an existing branch, or a PR. `wt switch` does the work, so Worktrunk hooks run as usual.
 * **Clean removal**: `wt remove` handles the branch (`--force`, `-D`, keep), then the plugin closes the Herdr Spaces and panes that were sitting in that checkout.
 * **Live sidebar status per Space**: PR number, checks and review when the branch has an open PR; otherwise dirty or clean plus ahead/behind. A watcher follows git and Herdr, so an edit, `git add`, commit, checkout or push shows up within about a second.
@@ -54,11 +55,15 @@ From GitHub:
 herdr plugin install maumercado/herdr-worktrunk
 ```
 
+That also links the Herdr app dialog: `~/.config/herdr-app/mods/worktrunk` points at this plugin's `app-mod` folder. Skipped when the app has no config folder yet (herdr links it at its next start) or with `WT_HERDR_SKIP_APP_MOD=1`; a folder of that name the plugin didn't make is left alone.
+
 Or from a local checkout, handy while hacking on it:
 
 ```sh
 git clone https://github.com/maumercado/herdr-worktrunk.git
 herdr plugin link ./herdr-worktrunk
+# link runs no build steps — install the app mod once by hand:
+sh bin/install-app-mod
 ```
 
 ## Quick start
@@ -126,6 +131,30 @@ Then, from any pane inside a git repo, press `prefix+a` to open the popup.
 `wt` runs attached to the popup, so the first time a project hook needs approval you can answer the prompt right there.
 
 Removal runs `wt remove --foreground` first and only closes Herdr Spaces and panes after it succeeds. A dirty worktree is refused unless you toggle force (Worktrunk saves a backup ref before discarding).
+
+## The Herdr app
+
+The same Worktrunk CLI drives a dialog in the [Herdr app](https://herdr.dev): list worktrees for the focused space's repo, open one as a space / tab / split, create via `wt switch`, and remove via `wt remove` in a terminal (so Worktrunk prompts stay interactive).
+
+Open it with `mod.open worktrunk` from the palette, or bind a key in `~/.config/herdr-app/keys.json`:
+
+```json
+{ "global": { "cmd-shift-a": "mod.open:worktrunk" } }
+```
+
+(`cmd-shift-a` is already bound in this user's Herdr app keys.) The dialog calls `node src/main.mjs list --json` from the linked plugin, and passes `on: space.machine` so a space on another machine runs `wt` there.
+
+| Key / button | Does |
+|---|---|
+| Enter / Open | open as a Space (selects it if already open) |
+| Tab | open as a tab in the current Space |
+| Split | split right of the focused pane |
+| New | new worktree: branch name, then base if creating |
+| PR | check out a PR by number or URL |
+| Remove | confirm flags, then `wt remove` in a terminal |
+| Refresh | re-run `list --json` |
+
+Sidebar PR tokens, ctrl-click PR links and oh-my-posh colors stay TUI-only: the app has no sidebar tokens, and the dialog uses `theme()` instead.
 
 ## Status in the sidebar
 
@@ -306,10 +335,13 @@ There is no build step and no `npm install`; the plugin only uses Node built-ins
 ### Layout
 
 ```
-herdr-plugin.toml   manifest: actions, popup pane, event hooks, link handler
+herdr-plugin.toml   manifest: actions, popup pane, app-mod install, event hooks, link handler
+bin/install-app-mod links ~/.config/herdr-app/mods/worktrunk → app-mod/
+app-mod/            Herdr app dialog (mod.open worktrunk)
 src/
-  main.mjs          entry point for every manifest command
-  picker.mjs        the popup UI
+  main.mjs          entry point for every manifest command (incl. list --json)
+  list-json.mjs     worktree list + status for the app dialog
+  picker.mjs        the TUI popup UI
   tui.mjs           minimal terminal UI helpers
   wt.mjs            Worktrunk wrapper (wt list / switch / remove)
   herdr.mjs         Herdr CLI wrapper and invocation context

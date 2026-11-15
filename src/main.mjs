@@ -6,6 +6,7 @@
 //   main.mjs live                   keep Space tokens in step with git (started by the startup hook)
 //   main.mjs sync [--force]         push PR / branch status into Space tokens once
 //   main.mjs status [dir]           print what sync would report for one checkout (debugging)
+//   main.mjs list --json [dir]      worktrees + status for the Herdr app dialog (and other front ends)
 //   main.mjs sidebar-config [file]  print Herdr sidebar rows colored with the active (or given) theme
 import { openPluginPane, notify, invocationContext } from "./herdr.mjs";
 import { which } from "./exec.mjs";
@@ -24,6 +25,23 @@ function requireWt() {
 
 async function main() {
   switch (cmd) {
+    case "list": {
+      // `list --json [dir]` — the app mod calls this so it never reimplements wt.
+      const json = rest[0] === "--json";
+      if (!json) {
+        log("usage: main.mjs list --json [dir]");
+        return 2;
+      }
+      if (!requireWt()) {
+        process.stdout.write(`${JSON.stringify({ error: `${WT()} not found on PATH` })}\n`);
+        return 1;
+      }
+      const { listJson } = await import("./list-json.mjs");
+      const dir = rest[1] ?? process.cwd();
+      const body = listJson(dir);
+      process.stdout.write(`${JSON.stringify(body)}\n`);
+      return body.error ? 1 : 0;
+    }
     case "open-pane": {
       if (!requireWt()) return 1;
       const mode = rest[0] ?? "browse";

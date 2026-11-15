@@ -6,6 +6,16 @@ min_herdr_version = "0.9.2"
 description = "Create, open and remove git worktrees with Worktrunk (wt), and show PR or dirty state on each Space"
 platforms = ["linux", "macos"]
 
+# Links ~/.config/herdr-app/mods/worktrunk to this plugin's app-mod folder,
+# so the Herdr app's Worktrees dialog updates with the plugin.
+[[build]]
+command = ["sh", "bin/install-app-mod"]
+
+# Same at each herdr start, so a linked plugin gets the dialog too
+# (`herdr plugin link` runs no build steps). Exits at once when nothing changed.
+[[startup]]
+command = ["sh", "bin/install-app-mod"]
+
 # Live status: a watcher that follows Herdr events and git changes, and keeps
 # sidebar tokens current until the server stops. It also re-applies tokens after
 # a server start (Herdr does not persist them). With "live": false in config.json

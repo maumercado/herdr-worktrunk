@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 *.log
 config.json
+app-mod/gpui-kit.d.ts
+app-mod/jsconfig.json
+app-mod/*.d.ts
